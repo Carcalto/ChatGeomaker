@@ -11,4 +11,4 @@ llama-index
 llama_index.llms.groq 
 scikit-learn
 faiss-gpu
-sentence_transformers
+sentence-transformers
