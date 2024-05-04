@@ -9,3 +9,4 @@ plotly
 langchain_core
 llama-index
 llama_index.llms.groq 
+faiss
