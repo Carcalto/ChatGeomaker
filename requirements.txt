@@ -1,0 +1,11 @@
+streamlit
+pandas
+numpy
+groq
+langchain_community
+langchain_groq
+yfinance
+plotly
+langchain_core
+llama-index
+llama_index.llms.groq 
