@@ -10,3 +10,6 @@ langchain_core
 llama-index
 llama_index.llms.groq 
 faiss
+scikit-learn
+faiss-cpu
+faiss-gpu
