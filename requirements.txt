@@ -12,3 +12,6 @@ llama_index.llms.groq
 scikit-learn
 faiss-gpu
 sentence-transformers
+tqdm 
+json
+torch
