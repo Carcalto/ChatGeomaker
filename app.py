@@ -1,18 +1,18 @@
 import streamlit as st
-from groq import Groq
-from llama_index.llms.groq import Groq as LlamaGroq
-from llama_index.core.llms import ChatMessage
 import numpy as np
 import faiss
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
+from groq import Groq
+from llama_index.llms.groq import Groq as LlamaGroq
+from llama_index.core.llms import ChatMessage
 
 def icon(emoji: str):
     """Mostra um emoji como ícone de página no estilo Notion."""
     st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
 
 st.set_page_config(page_icon="💬 Prof. Marcelo Claro", layout="wide", page_title="Geomaker Chat Interface")
-icon("🌎")  # Exibe o ícone do globo
+icon("")  # Exibe o ícone do globo
 
 st.subheader("Geomaker Chat Streamlit App")
 st.write("Professor Marcelo Claro")
@@ -20,6 +20,9 @@ st.write("Professor Marcelo Claro")
 api_key = st.secrets["GROQ_API_KEY"] if "GROQ_API_KEY" in st.secrets else "your_api_key_here"
 groq_client = Groq(api_key=api_key)
 llama_groq = LlamaGroq(model="llama3-70b-8192", api_key=api_key)
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 models = {
     "llama3-70b-8192": {"name": "LLaMA3-70b-Instruct", "tokens": 32768, "developer": "Facebook"},
@@ -33,41 +36,40 @@ max_tokens_range = models[model_option]["tokens"]
 max_tokens = st.slider("Max Tokens:", min_value=512, max_value=max_tokens_range, value=min(32768, max_tokens_range), step=512, help=f"Adjust the maximum number of tokens for the model's response: {max_tokens_range}")
 
 with st.sidebar:
-    st.image("https://example.com/image.png", width=100)
+    st.image("Untitled.png", width=100)
     st.write("Configurações")
-    uploaded_files = st.file_uploader("Upload your documents", accept_multiple_files=True, type=['txt'], help="Upload up to 5 documents.")
+    uploaded_files = st.file_uploader("Upload up to 5 documents", accept_multiple_files=True, type=['txt'])
+    system_prompt = st.text_area("Define the system prompt", value="Enter a default system prompt or update it dynamically here.")
 
-    # Faiss Index initialization
-    dimension = 128  # Assuming the vector size from the model
-    index = faiss.IndexFlatL2(dimension)
-    vectorizer = TfidfVectorizer()
-    svd = TruncatedSVD(n_components=dimension)
-
-    # Process and index documents
-    if uploaded_files and len(uploaded_files) <= 5:
+    # Prepare Faiss index for uploaded documents
+    if uploaded_files:
+        vectorizer = TfidfVectorizer()
+        svd = TruncatedSVD(n_components=128)  # Dimensionality reduction to reduce vector size
         documents = [file.getvalue().decode("utf-8") for file in uploaded_files]
         tfidf_matrix = vectorizer.fit_transform(documents)
-        reduced_matrix = svd.fit_transform(tfidf_matrix.toarray())
-        index.add(reduced_matrix.astype('float32'))
+        embeddings = svd.fit_transform(tfidf_matrix.toarray())
+        index = faiss.IndexFlatL2(128)  # Using L2 distance for similarity
+        index.add(np.array(embeddings).astype('float32'))
 
-    if st.button("Limpar Conversa"):
+    if st.button("Confirm Prompt"):
+        st.session_state.system_prompt = system_prompt
+    if st.button("Clear Chat"):
         st.session_state.messages = []
         st.experimental_rerun()
 
 def process_chat_with_rag(prompt):
-    # Embed the prompt using similar method as documents
-    prompt_vector = svd.transform(vectorizer.transform([prompt]).toarray()).astype('float32')
-    _, indices = index.search(prompt_vector, k=1)  # Find the closest document vector
-    related_document = documents[indices[0][0]]
-    
+    prompt_vec = svd.transform(vectorizer.transform([prompt]).toarray()).astype('float32')
+    D, I = index.search(prompt_vec, 1)  # Search for the most similar document
+    related_doc = documents[I[0][0]] if I.size > 0 else "No related document found."
+
     messages = [
-        ChatMessage(role="system", content=f"Related information: {related_document}"),
+        ChatMessage(role="system", content=f"Related document: {related_doc}"),
         ChatMessage(role="user", content=prompt)
     ]
     response = llama_groq.chat(messages)
     return response
 
-if prompt := st.text_area("Insira sua pergunta aqui..."):
+if prompt := st.text_area("Enter your question here..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     response = process_chat_with_rag(prompt)
     st.session_state.messages.append({"role": "assistant", "content": response})
