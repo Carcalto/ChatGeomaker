@@ -1,64 +1,78 @@
 import streamlit as st
-from groq import Groq  # Assumindo que esta é a API correta, ajuste conforme necessário
+from llama_index.core import SimpleDirectoryReader, SentenceSplitter, MetadataMode
+from llama_index.finetuning import EmbeddingAdapterFinetuneEngine, generate_qa_embedding_pairs
+from llama_index.core.embeddings import resolve_embed_model, LinearAdapterEmbeddingModel
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.core import VectorStoreIndex, TextNode
+from llama_index.core.evaluation import EmbeddingQAFinetuneDataset
+from tqdm import tqdm
+import pandas as pd
+import json
+import torch
 
-# Configuração inicial da página Streamlit
-st.set_page_config(page_icon="💬", layout="wide", page_title="Interface de Chat Avançada com RAG")
-icon = lambda emoji: st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
+# Configuração da página com mais opções de personalização
+st.set_page_config(page_icon="💬", layout="wide", page_title="Finetuning de Embedding Models")
 
-# Exibe um ícone e título personalizados
-icon("🧠")
-st.subheader("Aplicativo de Chat Avançado")
+st.header("Finetuning de Adapters em Modelos de Embedding")
 
-# Inicializa a API com a chave de segurança
-api_key = "sua_chave_api"  # Substitua com a chave real ou use st.secrets para maior segurança
-client = Groq(api_key=api_key)
+# Código para carregar os documentos
+def load_corpus(files, verbose=False):
+    if verbose:
+        st.write(f"Carregando arquivos {files}")
+    reader = SimpleDirectoryReader(input_files=files)
+    docs = reader.load_data()
+    if verbose:
+        st.write(f"{len(docs)} documentos carregados")
+    parser = SentenceSplitter()
+    nodes = parser.get_nodes_from_documents(docs, show_progress=verbose)
+    if verbose:
+        st.write(f"{len(nodes)} nodes parseados")
+    return nodes
 
-# Define os detalhes do modelo e a capacidade máxima de tokens
-models = {
-    "llama3-70b-8192": {"name": "LLaMA3-70b-Instruct", "tokens": 8192, "developer": "OpenAI"},
-    "gpt3-175b-rag": {"name": "GPT-3 175B with RAG", "tokens": 4096, "developer": "OpenAI RAG"}
-}
-model_option = st.selectbox("Escolha um modelo:", options=list(models.keys()), format_func=lambda x: models[x]["name"])
+# Treinamento e validação de arquivos
+TRAIN_FILES = ["./data/10k/lyft_2021.pdf"]
+VAL_FILES = ["./data/10k/uber_2021.pdf"]
 
-# Inicialização e gestão do estado da sessão
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "system_prompt" not in st.session_state:
-    st.session_state.system_prompt = ""
+if st.button("Carregar e Processar Datasets"):
+    train_nodes = load_corpus(TRAIN_FILES, verbose=True)
+    val_nodes = load_corpus(VAL_FILES, verbose=True)
+    # Gerar pares de treinamento e validação
+    train_dataset = generate_qa_embedding_pairs(train_nodes)
+    val_dataset = generate_qa_embedding_pairs(val_nodes)
+    train_dataset.save_json("train_dataset.json")
+    val_dataset.save_json("val_dataset.json")
+    st.write("Datasets de treinamento e validação gerados e salvos.")
 
-# Permite ao usuário definir um prompt de sistema inicial
-system_prompt = st.text_area("Defina o prompt inicial do sistema:", value=st.session_state.system_prompt)
-if st.button("Confirmar Prompt"):
-    st.session_state.system_prompt = system_prompt
+# Seção para o fine-tuning
+st.subheader("Fine-tuning do Adapter")
+base_embed_model = resolve_embed_model("local:BAAI/bge-small-en")
 
-# Área para inserção de perguntas com opção de limpar a conversa
-if st.button("Limpar Conversa"):
-    st.session_state.messages = []
-prompt = st.text_input("Insira sua pergunta aqui...")
-if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    try:
-        chat_completion = client.chat.completions.create(
-            model=model_option,
-            messages=[{"role": "system", "content": st.session_state.system_prompt}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages],
-            max_tokens=models[model_option]["tokens"],
-            stop_sequences=["\n"],
-            return_prompt=True
-        )
-        # Adiciona a resposta ao estado da sessão
-        response = chat_completion.choices[0].text.strip()
-        st.session_state.messages.append({"role": "assistant", "content": response})
-    except Exception as e:
-        st.error(f"Erro ao obter resposta: {str(e)}")
+if st.button("Iniciar Fine-tuning"):
+    finetune_engine = EmbeddingAdapterFinetuneEngine(
+        train_dataset,
+        base_embed_model,
+        model_output_path="model_output_test",
+        epochs=4,
+        verbose=True
+    )
+    finetune_engine.finetune()
+    embed_model = finetune_engine.get_finetuned_model()
 
-# Exibição das mensagens anteriores
-for message in st.session_state.messages:
-    role, content = message['role'], message['content']
-    avatar = "🤖" if role == "assistant" else "👨‍💻"
-    with st.container():
-        st.markdown(f"{avatar} **{role.capitalize()}**: {content}")
+    st.write("Modelo fine-tuned disponível.")
 
-# A caixa de entrada para o chat
-if st.text_area("Enviar nova mensagem:"):
-    # Processamento adicional aqui
-    pass
+# Seção para avaliação do modelo
+st.subheader("Avaliação do Modelo Fine-tuned")
+from eval_utils import evaluate, display_results
+
+if st.button("Avaliar Modelo"):
+    ada = OpenAIEmbedding()
+    ada_val_results = evaluate(val_dataset, ada)
+    bge_val_results = evaluate(val_dataset, embed_model)
+    ft_val_results = evaluate(val_dataset, embed_model)
+    
+    results_df = pd.DataFrame({
+        "retrievers": ["ada", "bge", "ft"],
+        "hit_rate": [ada_val_results["hit_rate"], bge_val_results["hit_rate"], ft_val_results["hit_rate"]],
+        "mrr": [ada_val_results["mrr"], bge_val_results["mrr"], ft_val_results["mrr"]]
+    })
+    st.write(results_df)
