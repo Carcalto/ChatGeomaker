@@ -1,19 +1,28 @@
 import streamlit as st
 import os
-from groq import Groq  # Certifique-se de que o Groq está corretamente importado.
-from llama_index.llms.groq import Groq as LlamaGroq
-from llama_index.core.llms import ChatMessage
-from langchain.chains import LLMChain
-from langchain.llms import GroqLLM
-from langchain.prompts import PromptTemplate, ChatPromptTemplate, SystemMessage, HumanMessagePromptTemplate, MessagesPlaceholder
-from langchain.memory import ConversationBufferWindowMemory
+from groq import Groq
+from langchain.chains import ConversationChain, LLMChain
+from langchain_core.prompts import ChatPromptTemplate, SystemMessage, HumanMessagePromptTemplate, MessagesPlaceholder
+from langchain_core.messages import ChatMessage
+from langchain_groq import ChatGroq
+from langchain.prompts import PromptTemplate
+
+def load_image(image_path):
+    """Lê a imagem do disco e retorna como bytes."""
+    with open(image_path, "rb") as file:
+        return file.read()
 
 def main():
-    # Configurações iniciais da página
-    st.set_page_config(page_icon="💬", layout="wide", page_title="Chat Avançado com Memória e RAG")
+    # Configuração da página
+    st.set_page_config(page_icon="💬", layout="wide", page_title="Chat Inteligente com Suporte a Memória e RAG")
     st.markdown(f'<span style="font-size: 78px;">🧠</span>', unsafe_allow_html=True)  # Ícone grande
     st.title("Aplicativo de Chat Avançado para Educação")
     st.write("Bem-vindo ao sistema avançado de chat!")
+
+    # Carregar e exibir o logo
+    image_path = 'path/to/logo.png'
+    image_data = load_image(image_path)
+    st.image(image_data, width=100)
 
     # Configurações de ambiente e API
     api_key = st.secrets.get("GROQ_API_KEY", "your_api_key_here")
@@ -23,7 +32,7 @@ def main():
     # Preparação da memória de conversação
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
-    memory = ConversationBufferWindowMemory(k=5)
+    memory = MessagesPlaceholder(variable_name="chat_history")
 
     # Configurações de modelo e prompt
     system_prompt = st.text_area("Defina o prompt do sistema:", "Digite aqui...")
