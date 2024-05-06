@@ -1,62 +1,62 @@
 import streamlit as st
-from groq import Groq  # Supondo que 'groq' seja o módulo correto para a API.
 import os
+from groq import Groq  # Certifique-se de que o Groq está corretamente importado.
+from llama_index.llms.groq import Groq as LlamaGroq
+from llama_index.core.llms import ChatMessage
+from langchain.chains import LLMChain
+from langchain.llms import GroqLLM
+from langchain.prompts import PromptTemplate, ChatPromptTemplate, SystemMessage, HumanMessagePromptTemplate, MessagesPlaceholder
+from langchain.memory import ConversationBufferWindowMemory
 
-# Configuração da página e exibição de ícones personalizados
-def icon(emoji: str):
-    """Exibe um emoji como ícone no estilo Notion."""
-    st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
+def main():
+    # Configurações iniciais da página
+    st.set_page_config(page_icon="💬", layout="wide", page_title="Chat Avançado com Memória e RAG")
+    st.markdown(f'<span style="font-size: 78px;">🧠</span>', unsafe_allow_html=True)  # Ícone grande
+    st.title("Aplicativo de Chat Avançado para Educação")
+    st.write("Bem-vindo ao sistema avançado de chat!")
 
-st.set_page_config(page_icon="💬", layout="wide", page_title="Chat Interface with Groq")
-icon("🧠")
-
-st.subheader("Interactive AI-assisted Chat Application for Education")
-st.write("Professor Marcelo Claro")
-
-# Configuração da chave API e tratamento de erro
-try:
-    api_key = os.environ.get("GROQ_API_KEY", "your_api_key_here")  # Uso de variável de ambiente para a chave API
+    # Configurações de ambiente e API
+    api_key = st.secrets.get("GROQ_API_KEY", "your_api_key_here")
     groq_client = Groq(api_key=api_key)
-except Exception as e:
-    st.error(f"Error setting up API: {str(e)}")
-    st.stop()
+    llama_groq = LlamaGroq(model="llama3-70b-8192", api_key=api_key)
 
-# Modelos disponíveis
-models = {
-    "llama3-70b-8192": {"name": "LLaMA3-70b-Instruct", "tokens": 8192, "developer": "Facebook"},
-    "llama3-8b-8192": {"name": "LLaMA3-8b-chat", "tokens": 8192, "developer": "Meta"},
-    "mixtral-8x7b-32768": {"name": "Mixtral-8x7b-Instruct-v0.1", "tokens": 32768, "developer": "Mistral"},
-    "gemma-7b-it": {"name": "Gemma-7b-it", "tokens": 8192, "developer": "Google"}
-}
+    # Preparação da memória de conversação
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+    memory = ConversationBufferWindowMemory(k=5)
 
-# Seleção do modelo na interface
-model_option = st.selectbox("Choose a model:", options=list(models.keys()), format_func=lambda x: models[x]["name"])
+    # Configurações de modelo e prompt
+    system_prompt = st.text_area("Defina o prompt do sistema:", "Digite aqui...")
+    model_choice = st.selectbox("Escolha um modelo:", ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "gemma-7b-it"])
 
-# Configuração adicional para tokens e prompt
-max_tokens = st.slider("Max Tokens:", min_value=512, max_value=models[model_option]["tokens"], value=2048, step=512)
-system_prompt = st.text_area("Set System Prompt:")
+    # Entrada de pergunta do usuário
+    user_question = st.text_input("Insira sua pergunta aqui:")
+    if user_question:
+        # Adicionando a pergunta à memória
+        memory.save_context({'input': user_question}, {'output': ''})
 
-# Gerenciamento de estado da sessão para armazenar mensagens
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+        # Criação do prompt
+        prompt_template = ChatPromptTemplate([
+            SystemMessage(system_prompt),
+            MessagesPlaceholder(variable_name="chat_history"),
+            HumanMessagePromptTemplate(template="{human_input}")
+        ])
+        conversation_chain = LLMChain(
+            llm=GroqLLM(api_key=api_key, model_name=model_choice),
+            prompt=prompt_template,
+            memory=memory
+        )
 
-# Função para processar chat com RAG para melhorar a qualidade das respostas
-def process_chat_with_rag(prompt):
-    try:
-        # Suposição de como enviar uma requisição usando Groq com RAG
-        response = groq_client.query(prompt, model_id=models[model_option]["name"], max_tokens=max_tokens)
-        return response
-    except Exception as e:
-        return f"Error processing response: {str(e)}"
+        # Previsão e resposta
+        response = conversation_chain.predict(human_input=user_question)
+        st.session_state.chat_history.append({'role': 'user', 'content': user_question})
+        st.session_state.chat_history.append({'role': 'assistant', 'content': response})
+        st.write("Resposta do Chatbot:", response)
 
-# Interface para entrada de perguntas
-user_question = st.text_input("Enter your question here:")
-if user_question:
-    response = process_chat_with_rag(user_question + " " + system_prompt)  # Concatena a pergunta do usuário com o prompt do sistema
-    st.session_state.messages.append({"user": user_question, "bot": response})
-    st.write("Chatbot:", response)
+    # Exibição do histórico de mensagens
+    for message in st.session_state.chat_history:
+        role = "🤖" if message['role'] == 'assistant' else "👤"
+        st.write(f"{role} {message['content']}")
 
-# Exibição de mensagens anteriores
-for message in st.session_state.messages:
-    st.write("You:", message["user"])
-    st.write("Chatbot:", message["bot"])
+if __name__ == "__main__":
+    main()
