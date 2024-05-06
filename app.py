@@ -1,87 +1,40 @@
 import streamlit as st
-from groqcloud import GroqCloud  # Supõe-se que esse módulo exista e esteja corretamente configurado
+from groq import Groq  # Assumindo que 'groq' é o módulo correto.
+import os
 
 # Configuração inicial da página
-st.set_page_config(page_icon="💬", layout="wide", page_title="Aplicativo de Chat Interativo Avançado")
+st.set_page_config(page_icon="💬", layout="wide", page_title="Chat IA Avançado")
+st.image('logo.png', width=100)  # Adicione o logo no cabeçalho
 
-def icon(emoji: str):
-    """Mostra um emoji como ícone de página no estilo Notion."""
-    st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
+# Conexão com a API Groq
+api_key = os.getenv("GROQ_API_KEY")
+groq_client = Groq(api_key=api_key)
 
-icon("🧠")
+# Função para criar e gerenciar a sessão de chat
+def manage_chat_session():
+    if 'messages' not in st.session_state:
+        st.session_state.messages = []
 
-# Subtítulo e cabeçalho da aplicação
-st.subheader("Aplicativo de Chat Assistido por IA")
-
-# Instanciação do cliente GroqCloud com a API Key
-api_key = st.secrets.get("GROQ_API_KEY", "your_api_key_here")
-client = GroqCloud(api_key=api_key)
-
-# Definição dos modelos de linguagem disponíveis
-models = {
-    "llama3-8b-8192": {
-        "name": "LLaMA3-8b-chat",
-        "tokens": 8192,
-        "developer": "Meta",
-    },
-    "llama3-70b-8192": {
-        "name": "LLaMA3-70b-chat",
-        "tokens": 8192,
-        "developer": "Meta",
-    },
-    "mixtral-8x7b-32768": {
-        "name": "Mixtral-8x7b-Instruct-v0.1",
-        "tokens": 32768,
-        "developer": "Mistral",
-    },
-    "gemma-7b-it": {
-        "name": "Gemma-7b-it",
-        "tokens": 8192,
-        "developer": "Google",
-    }
-}
-
-# Seleção de modelo pelo usuário
-model_option = st.selectbox(
-    "Escolha um modelo:",
-    options=list(models.keys()),
-    format_func=lambda x: models[x]["name"]
-)
-
-max_tokens_range = models[model_option]["tokens"]
-
-# Slider para definir o máximo de tokens
-max_tokens = st.slider(
-    "Máximo de Tokens:",
-    min_value=512,
-    max_value=max_tokens_range,
-    value=min(max_tokens_range, max_tokens_range),
-    step=512
-)
-
-# Processamento e exibição do chat
-if prompt := st.text_area("Insira sua pergunta aqui..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-
-    # Chamada à API para obter respostas do modelo selecionado
-    chat_completion = client.chat.completions.create(
-        model=model_option,
-        messages=[
-            {"role": m["role"], "content": m["content"]}
-            for m in st.session_state.messages
-        ],
-        max_tokens=max_tokens,
-        stream=True,
+    model_id = st.sidebar.selectbox(
+        "Escolha o Modelo:",
+        options=["llama3-8b-8192", "llama3-70b-8192", "mixtral-8x7b-32768", "gemma-7b-it"],
+        index=0,
+        format_func=lambda id: id.split('-')[0].capitalize() + " " + id.split('-')[1] + " (" + id.split('-')[2] + ")"
     )
 
-    # Processar e exibir respostas
-    for chunk in chat_completion:
-        if chunk.choices[0].delta.content:
-            response = chunk.choices[0].delta.content
-            st.session_state.messages.append({"role": "assistant", "content": response})
+    max_tokens = st.sidebar.slider("Máximo de Tokens:", 512, 32768, 2048)
 
-# Exibição das mensagens de chat
-for message in st.session_state.messages:
-    avatar = "🤖" if message["role"] == "assistant" else "👨‍💻"
-    with st.chat_message(message["role"], avatar=avatar):
-        st.markdown(message["content"])
+    prompt = st.text_input("Digite sua pergunta:", key="user_input")
+    if st.button("Enviar"):
+        system_prompt = f"Modelo: {model_id}, Tokens: {max_tokens}\n"
+        # Simulando uma chamada para a API Groq para processar o prompt
+        response = f"Resposta simulada para '{prompt}' usando o modelo {model_id}."
+        st.session_state.messages.append((prompt, response))
+
+    for idx, (user_question, bot_response) in enumerate(st.session_state.messages):
+        with st.container():
+            st.text_area(f"Pergunta {idx+1}", value=user_question, height=75, disabled=True)
+            st.text_area(f"Resposta {idx+1}", value=bot_response, height=100, disabled=True)
+
+# Chamada principal da função de gerenciamento do chat
+manage_chat_session()
