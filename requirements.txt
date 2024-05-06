@@ -12,5 +12,5 @@ llama_index.llms.groq
 scikit-learn
 faiss-gpu
 sentence-transformers
-
+groqcloud
 torch
