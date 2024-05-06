@@ -1,78 +1,87 @@
 import streamlit as st
-from llama_index.core import SimpleDirectoryReader, SentenceSplitter, MetadataMode
-from llama_index.finetuning import EmbeddingAdapterFinetuneEngine, generate_qa_embedding_pairs
-from llama_index.core.embeddings import resolve_embed_model, LinearAdapterEmbeddingModel
-from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.core import VectorStoreIndex, TextNode
-from llama_index.core.evaluation import EmbeddingQAFinetuneDataset
-from tqdm import tqdm
-import pandas as pd
-import json
-import torch
+from groqcloud import GroqCloud  # Supõe-se que esse módulo exista e esteja corretamente configurado
 
-# Configuração da página com mais opções de personalização
-st.set_page_config(page_icon="💬", layout="wide", page_title="Finetuning de Embedding Models")
+# Configuração inicial da página
+st.set_page_config(page_icon="💬", layout="wide", page_title="Aplicativo de Chat Interativo Avançado")
 
-st.header("Finetuning de Adapters em Modelos de Embedding")
+def icon(emoji: str):
+    """Mostra um emoji como ícone de página no estilo Notion."""
+    st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
 
-# Código para carregar os documentos
-def load_corpus(files, verbose=False):
-    if verbose:
-        st.write(f"Carregando arquivos {files}")
-    reader = SimpleDirectoryReader(input_files=files)
-    docs = reader.load_data()
-    if verbose:
-        st.write(f"{len(docs)} documentos carregados")
-    parser = SentenceSplitter()
-    nodes = parser.get_nodes_from_documents(docs, show_progress=verbose)
-    if verbose:
-        st.write(f"{len(nodes)} nodes parseados")
-    return nodes
+icon("🧠")
 
-# Treinamento e validação de arquivos
-TRAIN_FILES = ["./data/10k/lyft_2021.pdf"]
-VAL_FILES = ["./data/10k/uber_2021.pdf"]
+# Subtítulo e cabeçalho da aplicação
+st.subheader("Aplicativo de Chat Assistido por IA")
 
-if st.button("Carregar e Processar Datasets"):
-    train_nodes = load_corpus(TRAIN_FILES, verbose=True)
-    val_nodes = load_corpus(VAL_FILES, verbose=True)
-    # Gerar pares de treinamento e validação
-    train_dataset = generate_qa_embedding_pairs(train_nodes)
-    val_dataset = generate_qa_embedding_pairs(val_nodes)
-    train_dataset.save_json("train_dataset.json")
-    val_dataset.save_json("val_dataset.json")
-    st.write("Datasets de treinamento e validação gerados e salvos.")
+# Instanciação do cliente GroqCloud com a API Key
+api_key = st.secrets.get("GROQ_API_KEY", "your_api_key_here")
+client = GroqCloud(api_key=api_key)
 
-# Seção para o fine-tuning
-st.subheader("Fine-tuning do Adapter")
-base_embed_model = resolve_embed_model("local:BAAI/bge-small-en")
+# Definição dos modelos de linguagem disponíveis
+models = {
+    "llama3-8b-8192": {
+        "name": "LLaMA3-8b-chat",
+        "tokens": 8192,
+        "developer": "Meta",
+    },
+    "llama3-70b-8192": {
+        "name": "LLaMA3-70b-chat",
+        "tokens": 8192,
+        "developer": "Meta",
+    },
+    "mixtral-8x7b-32768": {
+        "name": "Mixtral-8x7b-Instruct-v0.1",
+        "tokens": 32768,
+        "developer": "Mistral",
+    },
+    "gemma-7b-it": {
+        "name": "Gemma-7b-it",
+        "tokens": 8192,
+        "developer": "Google",
+    }
+}
 
-if st.button("Iniciar Fine-tuning"):
-    finetune_engine = EmbeddingAdapterFinetuneEngine(
-        train_dataset,
-        base_embed_model,
-        model_output_path="model_output_test",
-        epochs=4,
-        verbose=True
+# Seleção de modelo pelo usuário
+model_option = st.selectbox(
+    "Escolha um modelo:",
+    options=list(models.keys()),
+    format_func=lambda x: models[x]["name"]
+)
+
+max_tokens_range = models[model_option]["tokens"]
+
+# Slider para definir o máximo de tokens
+max_tokens = st.slider(
+    "Máximo de Tokens:",
+    min_value=512,
+    max_value=max_tokens_range,
+    value=min(max_tokens_range, max_tokens_range),
+    step=512
+)
+
+# Processamento e exibição do chat
+if prompt := st.text_area("Insira sua pergunta aqui..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+
+    # Chamada à API para obter respostas do modelo selecionado
+    chat_completion = client.chat.completions.create(
+        model=model_option,
+        messages=[
+            {"role": m["role"], "content": m["content"]}
+            for m in st.session_state.messages
+        ],
+        max_tokens=max_tokens,
+        stream=True,
     )
-    finetune_engine.finetune()
-    embed_model = finetune_engine.get_finetuned_model()
 
-    st.write("Modelo fine-tuned disponível.")
+    # Processar e exibir respostas
+    for chunk in chat_completion:
+        if chunk.choices[0].delta.content:
+            response = chunk.choices[0].delta.content
+            st.session_state.messages.append({"role": "assistant", "content": response})
 
-# Seção para avaliação do modelo
-st.subheader("Avaliação do Modelo Fine-tuned")
-from eval_utils import evaluate, display_results
-
-if st.button("Avaliar Modelo"):
-    ada = OpenAIEmbedding()
-    ada_val_results = evaluate(val_dataset, ada)
-    bge_val_results = evaluate(val_dataset, embed_model)
-    ft_val_results = evaluate(val_dataset, embed_model)
-    
-    results_df = pd.DataFrame({
-        "retrievers": ["ada", "bge", "ft"],
-        "hit_rate": [ada_val_results["hit_rate"], bge_val_results["hit_rate"], ft_val_results["hit_rate"]],
-        "mrr": [ada_val_results["mrr"], bge_val_results["mrr"], ft_val_results["mrr"]]
-    })
-    st.write(results_df)
+# Exibição das mensagens de chat
+for message in st.session_state.messages:
+    avatar = "🤖" if message["role"] == "assistant" else "👨‍💻"
+    with st.chat_message(message["role"], avatar=avatar):
+        st.markdown(message["content"])
