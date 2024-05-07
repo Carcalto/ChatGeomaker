@@ -1,5 +1,9 @@
 import streamlit as st
 import os
+from groq import Groq  # Substitua 'groq' pelo módulo correto se necessário.
+from llama_index.llms.groq import Groq as LlamaGroq
+from llama_index.core.llms import ChatMessage
+
 from langchain.chains import LLMChain
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, MessagesPlaceholder
 from langchain_core.messages import SystemMessage
@@ -7,54 +11,46 @@ from langchain.chains.conversation.memory import ConversationBufferWindowMemory
 from langchain_groq import ChatGroq
 
 def main():
-    """Main function to set up and handle the AI-powered chat interface."""
-    # Set up page configuration and display initial information
-    st.set_page_config(page_icon="🤖", layout="wide", page_title="AI Chat Interface")
-    st.title("Welcome to the AI-powered Chat!")
-    st.write("Please ask your questions below:")
+    """Ponto de entrada principal do aplicativo de chat com IA."""
+    st.set_page_config(page_icon="💬", layout="wide", page_title="Interface de Chat Geomaker")
+    
+    # Configuração e exibição de logotipo
+    st.image("path_to_groq_logo.png", width=100)  # Substitua pelo caminho correto da imagem
+    st.title("Bem-vindo ao Chat com Groq!")
+    st.write("Olá! Sou o seu chatbot Groq amigável. Posso ajudar a responder suas perguntas, fornecer informações ou apenas conversar.")
 
-    # Environment setup for API key
-    groq_api_key = os.getenv('GROQ_API_KEY', 'default_api_key_if_not_set')
-    if groq_api_key == 'default_api_key_if_not_set':
-        st.error("API Key is not set in the environment variables.")
-        st.stop()
+    # Obter chave API do ambiente
+    groq_api_key = os.getenv('GROQ_API_KEY', 'Sua_chave_API_padrão')
 
-    # Setup ChatGroq client
-    model_choice = st.sidebar.selectbox("Select your model:", ["llama3-8b-8192", "gemma-7b-it"])
-    chat_groq = ChatGroq(groq_api_key=groq_api_key, model_name=model_choice)
+    # Opções de personalização na barra lateral
+    system_prompt = st.sidebar.text_input("Prompt do sistema:")
+    model_choice = st.sidebar.selectbox("Escolha um modelo:", ["llama3-70b-8192", "mixtral-8x7b-32768", "gemma-7b-it"])
+    conversational_memory_length = st.sidebar.slider('Tamanho da memória conversacional:', 1, 10, value=5)
 
-    # Define conversation memory
-    memory = ConversationBufferWindowMemory(k=5, memory_key="chat_history", return_messages=True)
+    # Gerenciamento de memória conversacional
+    memory = ConversationBufferWindowMemory(k=conversational_memory_length, memory_key="chat_history", return_messages=True)
 
-    # Handling user input
-    user_input = st.text_input("Your question:")
-
-    # Initialize chat history in session state
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
 
-    # Manage chat history and context
-    for message in st.session_state.chat_history:
-        memory.save_context({'input': message['human']}, {'output': message['AI']})
+    # Inicializar cliente de chat Groq
+    groq_chat = ChatGroq(groq_api_key=groq_api_key, model_name=model_choice)
 
-    # Construct prompt template
-    prompt_template = ChatPromptTemplate(
-        parts=[
-            SystemMessage("Hello, I'm here to help you. Please ask your question."),
+    user_question = st.text_input("Faça uma pergunta:")
+    if user_question:
+        prompt = ChatPromptTemplate.from_messages([
+            SystemMessage(content=system_prompt),
             MessagesPlaceholder(variable_name="chat_history"),
             HumanMessagePromptTemplate.from_template("{human_input}")
-        ]
-    )
+        ])
 
-    # Create a conversation chain with the LLM and the prompt template
-    conversation = LLMChain(llm=chat_groq, prompt=prompt_template, memory=memory)
+        conversation = LLMChain(llm=groq_chat, prompt=prompt, memory=memory)
 
-    # Process the user's question
-    if user_input:
-        response = conversation.predict(human_input=user_input)
-        message = {'human': user_input, 'AI': response}
+        # Gerar resposta do chatbot
+        response = conversation.predict(human_input=user_question)
+        message = {'human': user_question, 'AI': response}
         st.session_state.chat_history.append(message)
-        st.write("AI:", response)
+        st.write("Chatbot:", response)
 
 if __name__ == "__main__":
     main()
