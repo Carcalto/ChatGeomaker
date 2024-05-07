@@ -29,7 +29,7 @@ def main():
     st.set_page_config(page_icon="💬", layout="wide", page_title="Interface de Chat Avançado com RAG")
     
     # Mostra o logotipo para reforçar a marca ou a identidade visual do serviço de chat.
-    st.image("caminho_para_seu_logo.png", width=100)  # Substitua pelo caminho correto do arquivo de imagem
+    st.image("Untitled.png", width=100)  # Substitua pelo caminho correto do arquivo de imagem
     st.title("Bem-vindo ao Chat Avançado com RAG!")
     st.write("Este chatbot utiliza um modelo avançado que combina geração de linguagem com recuperação de informações.")
 
