@@ -12,7 +12,7 @@ def upload_json_data():
     Permite aos usuários fazer upload de arquivos JSON que podem ser usados como fonte de dados.
     Os arquivos são carregados através de um widget de upload no Streamlit.
     """
-    uploaded_files = st.file_uploader("Faça upload dos seus arquivos JSON (até 2 arquivos, 300MB cada)", type='json', accept_multiple_files=True, key="json_upload")
+    uploaded_files = st.file_uploader("Faça upload dos seus arquivos JSON (até 2 arquivos, 500MB cada)", type='json', accept_multiple_files=True, key="json_upload")
     if uploaded_files:
         data_frames = [pd.read_json(file) for file in uploaded_files]
         st.session_state['uploaded_data'] = data_frames
