@@ -1,75 +1,60 @@
 import streamlit as st
-from groq import Groq  # Verifique a disponibilidade e correção deste import.
-from llama_index.llms.groq import Groq as LlamaGroq
-from llama_index.core.llms import ChatMessage
+import os
+from langchain.chains import LLMChain
+from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, MessagesPlaceholder
+from langchain_core.messages import SystemMessage
+from langchain.chains.conversation.memory import ConversationBufferWindowMemory
+from langchain_groq import ChatGroq
 
-def icon(emoji: str):
-    """Mostra um emoji como ícone de página no estilo Notion."""
-    st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
+def main():
+    """Main function to set up and handle the AI-powered chat interface."""
+    # Set up page configuration and display initial information
+    st.set_page_config(page_icon="🤖", layout="wide", page_title="AI Chat Interface")
+    st.title("Welcome to the AI-powered Chat!")
+    st.write("Please ask your questions below:")
 
-st.set_page_config(page_icon="💬", layout="wide", page_title="Interface de Chat Geomaker")
-icon("🧠")
+    # Environment setup for API key
+    groq_api_key = os.getenv('GROQ_API_KEY', 'default_api_key_if_not_set')
+    if groq_api_key == 'default_api_key_if_not_set':
+        st.error("API Key is not set in the environment variables.")
+        st.stop()
 
-st.subheader("Aplicativo de Chat assistida por IA para Educação")
-st.write("Professor Marcelo Claro")
+    # Setup ChatGroq client
+    model_choice = st.sidebar.selectbox("Select your model:", ["llama3-8b-8192", "gemma-7b-it"])
+    chat_groq = ChatGroq(groq_api_key=groq_api_key, model_name=model_choice)
 
-try:
-    api_key = st.secrets["GROQ_API_KEY"]  # Correção para acesso correto ao segredo.
-    groq_client = Groq(api_key=api_key)
-    llama_groq = LlamaGroq(model="llama3-70b-8192", api_key=api_key)
-except Exception as e:
-    st.error(f"Erro ao configurar a API: {str(e)}")
-    st.stop()
+    # Define conversation memory
+    memory = ConversationBufferWindowMemory(k=5, memory_key="chat_history", return_messages=True)
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if 'show_manual' not in st.session_state:
-    st.session_state.show_manual = False
+    # Handling user input
+    user_input = st.text_input("Your question:")
 
-models = {
-    "llama3-70b-8192": {"name": "LLaMA3-70b-Instruct", "tokens": 32768, "developer": "Facebook"},
-    "llama3-8b-8192": {"name": "LLaMA3-8b-chat", "tokens": 32768, "developer": "Meta"},
-    "mixtral-8x7b-32768": {"name": "Mixtral-8x7b-Instruct-v0.1", "tokens": 32768, "developer": "Mistral"},
-    "gemma-7b-it": {"name": "Gemma-7b-it", "tokens": 32768, "developer": "Google"}
-}
+    # Initialize chat history in session state
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
 
-model_option = st.selectbox("Escolha um modelo:", options=list(models.keys()), format_func=lambda x: models[x]["name"])
-max_tokens_range = models[model_option]["tokens"]
-max_tokens = st.slider("Máximo de Tokens:", min_value=512, max_value=max_tokens_range, value=min(32768, max_tokens_range), step=512)
+    # Manage chat history and context
+    for message in st.session_state.chat_history:
+        memory.save_context({'input': message['human']}, {'output': message['AI']})
 
-with st.sidebar:
-    st.image("Untitled.png", width=100)
-    st.write("Configurações")
-    if st.button("Mostrar/Ocultar Manual de Uso"):
-        st.session_state.show_manual = not st.session_state.show_manual
+    # Construct prompt template
+    prompt_template = ChatPromptTemplate(
+        parts=[
+            SystemMessage("Hello, I'm here to help you. Please ask your question."),
+            MessagesPlaceholder(variable_name="chat_history"),
+            HumanMessagePromptTemplate.from_template("{human_input}")
+        ]
+    )
 
-    if st.session_state.show_manual:
-        st.write("## Manual de Uso")
-        # Manual de Uso detalhado aqui
+    # Create a conversation chain with the LLM and the prompt template
+    conversation = LLMChain(llm=chat_groq, prompt=prompt_template, memory=memory)
 
-    system_prompt = st.text_area("Defina o prompt do sistema: - Busque o catalogo de prompt para educador.")
-    if st.button("Confirmar Prompt"):
-        st.session_state.system_prompt = system_prompt
-    if st.button("Limpar Conversa"):
-        st.session_state.messages = []
-        st.experimental_rerun()
-    st.image("eu.ico", width=100)
-    st.write("Projeto Geomaker + IA - Professor: Marcelo Claro.")
+    # Process the user's question
+    if user_input:
+        response = conversation.predict(human_input=user_input)
+        message = {'human': user_input, 'AI': response}
+        st.session_state.chat_history.append(message)
+        st.write("AI:", response)
 
-def process_chat_with_rag(prompt):
-    try:
-        messages = [ChatMessage(role="system", content=st.session_state.system_prompt), ChatMessage(role="user", content=prompt)]
-        response = llama_groq.chat(messages)
-        return response
-    except Exception as e:
-        return f"Erro ao processar a resposta: {str(e)}"
-
-if prompt := st.text_area("Insira sua pergunta aqui..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    response = process_chat_with_rag(prompt)
-    st.session_state.messages.append({"role": "assistant", "content": response})
-
-for message in st.session_state.messages:
-    avatar = "🤖" if message["role"] == "assistant" else "👨‍💻"
-    with st.chat_message(message["role"], avatar=avatar):
-        st.markdown(message["content"])
+if __name__ == "__main__":
+    main()
