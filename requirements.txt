@@ -7,3 +7,6 @@ langchain_community
 langchain_groq
 sqlparse
 scikit-learn
+langchain.llms
+langchain.prompts                               
+langchain.memory
