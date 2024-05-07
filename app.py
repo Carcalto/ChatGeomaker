@@ -40,8 +40,8 @@ def main():
     st.sidebar.title('Customização')
     primary_prompt = st.sidebar.text_input("Prompt do sistema principal", "Como posso ajudar você hoje?")
     secondary_prompt = st.sidebar.text_input("Prompt do sistema secundário", "Há algo mais em que posso ajudar?")
-    model_choice = st.sidebar.selectbox("Escolha um modelo", ["llama3-70b-8192", "mixtral-8x7b-32768", "gemma-7b-it"])
-    conversational_memory_length = st.sidebar.slider('Tamanho da memória conversacional', 1, 10, value=5)
+    model_choice = st.sidebar.selectbox("Escolha um modelo", ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "gemma-7b-it"])
+    conversational_memory_length = st.sidebar.slider('Tamanho da memória conversacional', 1, 50, value=5)
 
     # Configura a memória conversacional para armazenar o histórico de interações.
     memory = ConversationBufferWindowMemory(k=conversational_memory_length, memory_key="chat_history", return_messages=True)
