@@ -1,71 +1,75 @@
 import streamlit as st
-import os
-from groq import Groq
-from langchain.chains import ConversationChain, LLMChain
-from langchain_core.prompts import ChatPromptTemplate, SystemMessage, HumanMessagePromptTemplate, MessagesPlaceholder
-from langchain_core.messages import ChatMessage
-from langchain_groq import ChatGroq
-from langchain.prompts import PromptTemplate
+from groq import Groq  # Verifique a disponibilidade e correção deste import.
+from llama_index.llms.groq import Groq as LlamaGroq
+from llama_index.core.llms import ChatMessage
 
-def load_image(image_path):
-    """Lê a imagem do disco e retorna como bytes."""
-    with open(image_path, "rb") as file:
-        return file.read()
+def icon(emoji: str):
+    """Mostra um emoji como ícone de página no estilo Notion."""
+    st.write(f'<span style="font-size: 78px; line-height: 1">{emoji}</span>', unsafe_allow_html=True)
 
-def main():
-    # Configuração da página
-    st.set_page_config(page_icon="💬", layout="wide", page_title="Chat Inteligente com Suporte a Memória e RAG")
-    st.markdown(f'<span style="font-size: 78px;">🧠</span>', unsafe_allow_html=True)  # Ícone grande
-    st.title("Aplicativo de Chat Avançado para Educação")
-    st.write("Bem-vindo ao sistema avançado de chat!")
+st.set_page_config(page_icon="💬", layout="wide", page_title="Interface de Chat Geomaker")
+icon("🧠")
 
-    # Carregar e exibir o logo
-    image_path = 'path/to/Untitled.png'
-    image_data = load_image(image_path)
-    st.image(image_data, width=100)
+st.subheader("Aplicativo de Chat assistida por IA para Educação")
+st.write("Professor Marcelo Claro")
 
-    # Configurações de ambiente e API
-    api_key = st.secrets.get("GROQ_API_KEY", "your_api_key_here")
+try:
+    api_key = st.secrets["GROQ_API_KEY"]  # Correção para acesso correto ao segredo.
     groq_client = Groq(api_key=api_key)
     llama_groq = LlamaGroq(model="llama3-70b-8192", api_key=api_key)
+except Exception as e:
+    st.error(f"Erro ao configurar a API: {str(e)}")
+    st.stop()
 
-    # Preparação da memória de conversação
-    if 'chat_history' not in st.session_state:
-        st.session_state.chat_history = []
-    memory = MessagesPlaceholder(variable_name="chat_history")
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if 'show_manual' not in st.session_state:
+    st.session_state.show_manual = False
 
-    # Configurações de modelo e prompt
-    system_prompt = st.text_area("Defina o prompt do sistema:", "Digite aqui...")
-    model_choice = st.selectbox("Escolha um modelo:", ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "gemma-7b-it"])
+models = {
+    "llama3-70b-8192": {"name": "LLaMA3-70b-Instruct", "tokens": 32768, "developer": "Facebook"},
+    "llama3-8b-8192": {"name": "LLaMA3-8b-chat", "tokens": 32768, "developer": "Meta"},
+    "mixtral-8x7b-32768": {"name": "Mixtral-8x7b-Instruct-v0.1", "tokens": 32768, "developer": "Mistral"},
+    "gemma-7b-it": {"name": "Gemma-7b-it", "tokens": 32768, "developer": "Google"}
+}
 
-    # Entrada de pergunta do usuário
-    user_question = st.text_input("Insira sua pergunta aqui:")
-    if user_question:
-        # Adicionando a pergunta à memória
-        memory.save_context({'input': user_question}, {'output': ''})
+model_option = st.selectbox("Escolha um modelo:", options=list(models.keys()), format_func=lambda x: models[x]["name"])
+max_tokens_range = models[model_option]["tokens"]
+max_tokens = st.slider("Máximo de Tokens:", min_value=512, max_value=max_tokens_range, value=min(32768, max_tokens_range), step=512)
 
-        # Criação do prompt
-        prompt_template = ChatPromptTemplate([
-            SystemMessage(system_prompt),
-            MessagesPlaceholder(variable_name="chat_history"),
-            HumanMessagePromptTemplate(template="{human_input}")
-        ])
-        conversation_chain = LLMChain(
-            llm=GroqLLM(api_key=api_key, model_name=model_choice),
-            prompt=prompt_template,
-            memory=memory
-        )
+with st.sidebar:
+    st.image("Untitled.png", width=100)
+    st.write("Configurações")
+    if st.button("Mostrar/Ocultar Manual de Uso"):
+        st.session_state.show_manual = not st.session_state.show_manual
 
-        # Previsão e resposta
-        response = conversation_chain.predict(human_input=user_question)
-        st.session_state.chat_history.append({'role': 'user', 'content': user_question})
-        st.session_state.chat_history.append({'role': 'assistant', 'content': response})
-        st.write("Resposta do Chatbot:", response)
+    if st.session_state.show_manual:
+        st.write("## Manual de Uso")
+        # Manual de Uso detalhado aqui
 
-    # Exibição do histórico de mensagens
-    for message in st.session_state.chat_history:
-        role = "🤖" if message['role'] == 'assistant' else "👤"
-        st.write(f"{role} {message['content']}")
+    system_prompt = st.text_area("Defina o prompt do sistema: - Busque o catalogo de prompt para educador.")
+    if st.button("Confirmar Prompt"):
+        st.session_state.system_prompt = system_prompt
+    if st.button("Limpar Conversa"):
+        st.session_state.messages = []
+        st.experimental_rerun()
+    st.image("eu.ico", width=100)
+    st.write("Projeto Geomaker + IA - Professor: Marcelo Claro.")
 
-if __name__ == "__main__":
-    main()
+def process_chat_with_rag(prompt):
+    try:
+        messages = [ChatMessage(role="system", content=st.session_state.system_prompt), ChatMessage(role="user", content=prompt)]
+        response = llama_groq.chat(messages)
+        return response
+    except Exception as e:
+        return f"Erro ao processar a resposta: {str(e)}"
+
+if prompt := st.text_area("Insira sua pergunta aqui..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    response = process_chat_with_rag(prompt)
+    st.session_state.messages.append({"role": "assistant", "content": response})
+
+for message in st.session_state.messages:
+    avatar = "🤖" if message["role"] == "assistant" else "👨‍💻"
+    with st.chat_message(message["role"], avatar=avatar):
+        st.markdown(message["content"])
