@@ -20,7 +20,7 @@ def main():
     st.write("Bem-vindo ao sistema avançado de chat!")
 
     # Carregar e exibir o logo
-    image_path = 'path/to/logo.png'
+    image_path = 'path/to/Untitled.png'
     image_data = load_image(image_path)
     st.image(image_data, width=100)
 
