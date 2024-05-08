@@ -1,11 +1,4 @@
 streamlit
 pandas
-numpy
-groq
-langchain
-langchain_community
-langchain_groq
-sqlparse
 scikit-learn
-llama_index
-Groq
+langchain
