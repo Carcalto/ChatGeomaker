@@ -56,7 +56,7 @@ def perform_advanced_rag(question, data_frames):
 
 def main():
     st.set_page_config(page_icon="💬", layout="wide", page_title="Interface de Chat Avançado com RAG e Upload de Dados")
-    st.image("caminho_para_seu_logo.png", width=100)
+    st.image("Untitled.png", width=100)
     st.title("Bem-vindo ao Chat Avançado com RAG!")
     st.write("Este chatbot utiliza um modelo avançado que combina geração de linguagem com recuperação de informações.")
 
