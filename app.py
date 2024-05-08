@@ -3,7 +3,7 @@ import os
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from langchain.llms import Groq
+from langchain.llms import groq
 from langchain.prompts import SimplePrompt
 from langchain.memory import ConversationMemory
 
