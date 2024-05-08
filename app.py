@@ -12,7 +12,7 @@ def upload_json_data():
     Permite aos usuários fazer upload de arquivos JSON que podem ser usados como fonte de dados.
     Os arquivos são carregados através de um widget de upload no Streamlit e lidos como DataFrames.
     """
-    uploaded_files = st.file_uploader("Faça upload dos seus arquivos JSON (até 2 arquivos, 300MB cada)", type='json', accept_multiple_files=True, key="json_upload")
+    uploaded_files = st.file_uploader("Faça upload dos seus arquivos JSON (até 2 arquivos, 500MB cada)", type='json', accept_multiple_files=True, key="json_upload")
     if uploaded_files:
         data_frames = []
         for file in uploaded_files:
@@ -30,14 +30,14 @@ def upload_json_data():
 def main():
     st.set_page_config(page_icon="💬", layout="wide", page_title="Interface de Chat Avançado com RAG")
     st.image("Untitled.png", width=100)
-    st.title("Bem-vindo ao Chat Avançado com RAG!")
+    st.title("Bem-vindo ao Chat Geomaker Avançado com RAG!")
     st.write("Este chatbot utiliza um modelo avançado que combina geração de linguagem com recuperação de informações.")
 
     groq_api_key = os.getenv('GROQ_API_KEY', 'Chave_API_Padrão')
     st.sidebar.title('Customização')
     primary_prompt = st.sidebar.text_input("Prompt do sistema principal", "Como posso ajudar você hoje?")
     secondary_prompt = st.sidebar.text_input("Prompt do sistema secundário", "Há algo mais em que posso ajudar?")
-    model_choice = st.sidebar.selectbox("Escolha um modelo", ["llama3-70b-8192", "mixtral-8x7b-32768", "gemma-7b-it"])
+    model_choice = st.sidebar.selectbox("Escolha um modelo", ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "gemma-7b-it"])
     conversational_memory_length = st.sidebar.slider('Tamanho da memória conversacional', 1, 10, value=5)
 
     memory = ConversationBufferWindowMemory(k=conversational_memory_length, memory_key="chat_history", return_messages=True)
