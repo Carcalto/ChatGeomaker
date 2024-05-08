@@ -40,14 +40,7 @@ def main():
     secondary_prompt = st.sidebar.text_input("Prompt do sistema secundário", "Há algo mais em que posso ajudar?")
     model_choice = st.sidebar.selectbox("Escolha um modelo", ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "gemma-7b-it"])
     conversational_memory_length = st.sidebar.slider('Tamanho da memória conversacional', 1, 50, value=5)
-    st.image("eu.ico", width=100)
-    st.write("""
-    Projeto Geomaker + IA 
-    - Professor: Marcelo Claro.
-    Contatos: marceloclaro@gmail.com
-    Whatsapp: (88)981587145
-    Instagram: https://www.instagram.com/marceloclaro.geomaker/
-    """)
+
     memory = ConversationBufferWindowMemory(k=conversational_memory_length, memory_key="chat_history", return_messages=True)
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
@@ -71,6 +64,13 @@ def main():
         message = {'human': user_question, 'AI': response}
         st.session_state.chat_history.append(message)
         st.write("Chatbot:", response)
-
+        st.image("eu.ico", width=100)
+        st.write("""
+        Projeto Geomaker + IA 
+        - Professor: Marcelo Claro.
+        Contatos: marceloclaro@gmail.com
+        Whatsapp: (88)981587145
+        Instagram: https://www.instagram.com/marceloclaro.geomaker/
+        """)    
 if __name__ == "__main__":
     main()
