@@ -8,3 +8,4 @@ langchain_groq
 sqlparse
 scikit-learn
 llama_index
+Groq
