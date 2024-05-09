@@ -4,3 +4,6 @@ scikit-learn
 langchain
 langchain-groq
 groq
+matplot
+seaborn
+numpy
